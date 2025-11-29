@@ -2,6 +2,7 @@
 library(pacman)
 p_load(dplyr)
 p_load(lubridate)
+p_load(ggplot2)
 ```
 
 
@@ -56,3 +57,118 @@ appearances <- select(appearances, player_club_id, game_id, player_id, date,
 ```{r}
 head(appearances)
 ```
+
+# Analysis
+```{r}
+players_of_interest <- c("Cristiano Ronaldo", "Lionel Messi", "Luka Modric", "Thomas Müller", "Neymar", "Kylian Mbappé")
+appearances_of_interest <- filter(appearances, player %in% players_of_interest)
+```
+
+```{r}
+appearances_of_interest <- appearances_of_interest %>%
+  mutate(
+    month 	= month(date),
+	year 	= year(date),
+    season 	= case_when(
+      month %in% c(12, 1, 2) ~ "Winter",
+      month %in% c(3, 4, 5) ~ "Spring",
+      month %in% c(6, 7, 8) ~ "Summer",
+      month %in% c(9, 10, 11) ~ "Autumn",
+      TRUE ~ NA_character_
+    )
+  )
+
+player_season_stats <- appearances_of_interest %>%
+  group_by(player, year, season) %>%
+  summarise(
+    games = n(),
+    goals = sum(goals, na.rm = TRUE),
+    assists = sum(assists, na.rm = TRUE),
+    minutes = sum(minutes_played, na.rm = TRUE),
+	avg_goals = (goals+assists)/games,
+    .groups = "drop"
+  ) %>%
+  arrange(player, year, season)
+
+player_yearly_stats <- appearances_of_interest %>%
+  group_by(player, year) %>%
+  summarise(
+    games = n(),
+    goals = sum(goals, na.rm = TRUE),
+    assists = sum(assists, na.rm = TRUE),
+    minutes = sum(minutes_played, na.rm = TRUE),
+    avg_goals = (goals+assists) / games,
+    .groups = "drop"
+  )
+```
+```{r}
+# Create the line plot
+ggplot(player_yearly_stats, aes(x = year, y = avg_goals, color = player)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Average Goals + Assists per Game by Year",
+    x = "Year",
+    y = "Average Goals + Assists per Game",
+    color = "Player"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
+  ) +
+  scale_color_manual(values = c(
+    "Cristiano Ronaldo" = "#E74C3C",
+    "Lionel Messi" = "#3498DB",
+    "Luka Modric" = "#F39C12",
+    "Thomas Müller" = "#9B59B6",
+    "Neymar" = "#2ECC71",
+    "Kylian Mbappé" = "#E67E22"
+  ))
+
+# Create line plot with facets for each season
+ggplot(player_season_stats, aes(x = year, y = avg_goals, color = player)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  facet_wrap(~ season, ncol = 2) +
+  labs(
+    title = "Average Goals + Assists per Game by Season Across Years",
+    x = "Year",
+    y = "Average Goals + Assists per Game",
+    color = "Player"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    strip.text = element_text(face = "bold", size = 12)
+  ) +
+  scale_color_manual(values = c(
+    "Cristiano Ronaldo" = "#E74C3C",
+    "Lionel Messi" = "#3498DB",
+    "Luka Modric" = "#F39C12",
+    "Thomas Müller" = "#9B59B6",
+    "Neymar" = "#2ECC71",
+    "Kylian Mbappé" = "#E67E22"
+  ))
+```
+```{r}
+# Density plots faceted by player, colored by season
+ggplot(player_season_stats, aes(x = avg_goals, fill = season, color = season)) +
+  geom_density(alpha = 0.5, size = 1) +
+  facet_wrap(~ player, ncol = 2, scales = "free") +
+  labs(
+    title = "Distribution of Average Goals + Assists per Game by Player",
+    x = "Average Goals + Assists per Game",
+    y = "Density",
+    fill = "Season",
+    color = "Season"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    strip.text = element_text(face = "bold", size = 11)
+  )
+```
+
