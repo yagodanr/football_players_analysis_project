@@ -1,0 +1,56 @@
+```{r}
+library(dplyr)
+```
+
+
+# Dataset processing
+## goals dataset
+```{r}
+game_events <- read.csv("./player-scores/game_events.csv")
+players     <- read.csv("./player-scores/players.csv")
+clubs       <- read.csv("./player-scores/clubs.csv")
+games       <- read.csv("./player-scores/games.csv")
+```
+
+```{r}
+game_events <- select(game_events, !c(game_event_id, player_in_id, player_assist_id))
+games       <- select(games, game_id, spectators=attendance,
+                        home_club_name, away_club_name,
+                        home_club_goals, away_club_goals)
+players     <- select(players, player_id, player=name)
+clubs       <- select(clubs, club_id, player_club=name)
+```
+
+```{r}
+
+game_events <- merge(game_events, players, by = "player_id", all = TRUE)
+game_events <- merge(game_events, clubs, by = "club_id", all = TRUE)
+game_events <- merge(game_events, games, by = "game_id", all = TRUE)
+
+```
+
+```{r}
+# summary(game_events)
+game_events <- game_events %>% filter(!is.na(player))
+game_events <- arrange(game_events, date, minute)
+head(game_events, 100)
+```
+
+
+```{r}
+goals   <- game_events[game_events$type=="Goals", ]
+goals
+```
+
+## appearances dataset
+```{r}
+appearances <- read.csv("./player-scores/appearances.csv")
+appearances <- merge(appearances, clubs, by.x = "player_club_id", by.y = "club_id")
+appearances <- select(appearances, player_club_id, game_id, player_id, date,
+                player=player_name, player_club, minutes_played,
+                yellow_cards, red_cards, goals, assists)
+```
+
+```{r}
+head(appearances)
+```
