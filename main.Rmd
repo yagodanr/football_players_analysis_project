@@ -271,7 +271,6 @@ ggplot(all_games, aes(sample = goals_count)) +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
 
-
 cat("Statistical analysis\n")
 
 cat("Hypothesis test results:\n")
@@ -283,7 +282,6 @@ cat("P-value: ", format(chi_test$p.value, scientific = TRUE), "\n\n")
 cat("Kolmogorov-Smirnov Test:\n")
 cat("D Statistic: ", round(ks_test$statistic, 4), "\n")
 cat("P-value: ", format(ks_test$p.value, scientific = TRUE), "\n\n")
-
 
 cat("Conclusion\n")
 
