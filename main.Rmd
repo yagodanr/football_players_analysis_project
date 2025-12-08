@@ -3,11 +3,13 @@ library(pacman)
 p_load(dplyr)
 p_load(lubridate)
 p_load(ggplot2)
+p_load(fitdistrplus)
 ```
 
-
 # Dataset processing
+
 ## goals dataset
+
 ```{r}
 game_events <- read.csv("./player-scores/game_events.csv")
 players     <- read.csv("./player-scores/players.csv")
@@ -20,8 +22,12 @@ game_events <- select(game_events, !c(game_event_id, player_in_id, player_assist
 games       <- select(games, game_id, spectators=attendance,
 						home_club_name, away_club_name,
 						home_club_goals, away_club_goals)
-players     <- select(players, player_id, player=name)
+players     <- select(players, player_id, player=name, date_of_birth)
 clubs       <- select(clubs, club_id, player_club=name)
+```
+
+```{r}
+head(players)
 ```
 
 ```{r}
@@ -39,19 +45,26 @@ game_events <- arrange(game_events, date, minute)
 head(game_events, 100)
 ```
 
-
 ```{r}
 goals   <- game_events[game_events$type=="Goals", ]
 head(goals)
 ```
 
 ## appearances dataset
+
 ```{r}
 appearances <- read.csv("./player-scores/appearances.csv")
 appearances <- merge(appearances, clubs, by.x = "player_club_id", by.y = "club_id")
-appearances <- select(appearances, player_club_id, game_id, player_id, date,
-				player=player_name, player_club, minutes_played,
-				yellow_cards, red_cards, goals, assists)
+appearances <- merge(appearances, players, by.x = "player_id", by.y = "player_id")
+appearances <- select(appearances, player_club_id, game_id, player_id,
+                      date, player=player_name, player_club,
+                      minutes_played,yellow_cards, red_cards, goals, assists,
+                      date_of_birth)
+appearances <- appearances %>%
+  mutate( 
+    dob = as.Date(date_of_birth),
+    age_at_match = as.numeric(difftime(as.Date(date), dob, units = "days")) / 365.25
+  )
 ```
 
 ```{r}
@@ -59,6 +72,7 @@ head(appearances)
 ```
 
 # Analysis
+
 ```{r}
 players_of_interest <- c("Cristiano Ronaldo", "Lionel Messi", "Luka Modric", "Thomas Müller", "Neymar", "Kylian Mbappé")
 appearances_of_interest <- filter(appearances, player %in% players_of_interest)
@@ -101,6 +115,7 @@ player_yearly_stats <- appearances_of_interest %>%
     .groups = "drop"
   )
 ```
+
 ```{r}
 # Create the line plot
 ggplot(player_yearly_stats, aes(x = year, y = avg_goals, color = player)) +
@@ -140,7 +155,7 @@ ggplot(player_season_stats, aes(x = year, y = avg_goals, color = player)) +
   theme_minimal() +
   theme(
     legend.position = "bottom",
-    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.title = element_text(hjust = 0.5, line = 14, face = "bold"),
     strip.text = element_text(face = "bold", size = 12)
   ) +
   scale_color_manual(values = c(
@@ -152,6 +167,7 @@ ggplot(player_season_stats, aes(x = year, y = avg_goals, color = player)) +
     "Kylian Mbappé" = "#E67E22"
   ))
 ```
+
 ```{r}
 # Density plots faceted by player, colored by season
 ggplot(player_season_stats, aes(x = avg_goals, fill = season, color = season)) +
@@ -176,10 +192,7 @@ ggplot(player_season_stats, aes(x = avg_goals, fill = season, color = season)) +
 
 ```{r}
 
-library(pacman)
-p_load(dplyr)
-p_load(ggplot2)
-p_load(fitdistrplus)
+
 
 game_events <- read.csv("./player-scores/game_events.csv")
 games <- read.csv("./player-scores/games.csv")
@@ -305,3 +318,73 @@ cat("the hypothesis about Poisson distribution, despite the visually acceptable 
 
 ```
 
+# Hypotesis 3
+
+```{r}
+target_names <- "Lionel Messi|Cristiano Ronaldo|Zlatan Ibrahimović"
+
+superstars_df <- appearances %>%
+  filter(grepl(target_names, player, ignore.case = TRUE)) %>%
+  filter(minutes_played > 45) %>%
+  mutate(player_label = case_when(
+    grepl("Lionel Messi", player) ~ "Lionel Messi",
+    grepl("Cristiano Ronaldo", player) ~ "Cristiano Ronaldo",
+    grepl("Zlatan Ibrahimović", player) ~ "Zlatan Ibrahimović",
+    TRUE ~ player
+  ))
+
+superstars_anova <- superstars_df %>%
+  mutate(career_stage = case_when(
+    age_at_match < 35 ~ "Prime (Yonger than 35)",
+    age_at_match >= 35 ~ "Veteran (35+)"
+  ))
+
+ggplot(superstars_anova, aes(x = career_stage, y = goals, fill = player_label)) +
+  geom_boxplot(alpha = 0.5) +
+  labs(
+    title = "Performance by Age",
+    subtitle = "Comparing Prime(<35) vs. Veteran (35+)",
+    x = "Career Stage",
+    y = "Goals + Assists per Match"
+  ) +
+  theme_minimal()
+
+model_superstar <- aov(goals ~ career_stage, data = superstars_anova)
+
+cat("--- ANOVA Results for Superstars ---\n")
+summary(model_superstar)
+
+cat("\n--- Detailed Comparison ---\n")
+TukeyHSD(model_superstar)
+```
+
+### Explanation
+
+Define the performance of a player as the #goals per match(given that the player spent at least 45 minutes playing in that match). Break down the data in two groups:
+
+1.  Prime: performance at younger age(\<35 y.o.)
+2.  Veteran: performance at older age (35+ y.o)
+
+By using the ANOVA test we can calculate the statistical difference between the average performance of two groups(and if is difference is due to noise or not).
+
+The hypothesis is as follows:
+
+$$
+H_0: \mu_{prime} = \mu_{veteran} \text{ vs. } H_1 : \mu_{prime} \ne \mu_{veteran}
+$$
+
+From our data we get $$p = 3.05e-05$$, therefore we can reject $$H_0$$ with great confidence.
+
+After finding a statistical difference in data (meaning that indeed two groups perform diffirently), we use Tukey HSD to understand which group actually performs better and by how much.
+
+The $$diff$$ parameter in the test is equal to $$-0.2876461 < 0$$ which tells us that the "Prime" group on average performs better(as we testes "Veteran"-"Prime"). The adjusted $$p$$ value of $$3.05e-05$$ confirms that the difference is statistically significant.
+
+In conclusion we can say that the "Veteran" group performs worse by 0.28 Goals per game. Which in a 38-game season gives a difference of 10-11 goals.
+
+It should be mentioned that the data-set consists of data from 2012 and onward, so technically the prime group is defined as:
+
+Messi (25-34 y.o.)
+
+Ronaldo (27-34 y.o.)
+
+Ibrahimović (31-34 y.o.)
