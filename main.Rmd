@@ -4,6 +4,7 @@ p_load(dplyr)
 p_load(lubridate)
 p_load(ggplot2)
 p_load(fitdistrplus)
+p_load(performance)
 ```
 
 # Dataset processing
@@ -44,6 +45,11 @@ game_events <- game_events %>% filter(!is.na(player))
 game_events <- arrange(game_events, date, minute)
 head(game_events, 100)
 ```
+```{r}
+summary(game_events)
+```
+
+
 
 ```{r}
 goals   <- game_events[game_events$type=="Goals", ]
@@ -70,122 +76,8 @@ appearances <- appearances %>%
 ```{r}
 head(appearances)
 ```
-
-# Analysis
-
 ```{r}
-players_of_interest <- c("Cristiano Ronaldo", "Lionel Messi", "Luka Modric", "Thomas Müller", "Neymar", "Kylian Mbappé")
-appearances_of_interest <- filter(appearances, player %in% players_of_interest)
-```
-
-```{r}
-appearances_of_interest <- appearances_of_interest %>%
-  mutate(
-    month 	= month(date),
-	year 	= year(date),
-    season 	= case_when(
-      month %in% c(12, 1, 2) ~ "Winter",
-      month %in% c(3, 4, 5) ~ "Spring",
-      month %in% c(6, 7, 8) ~ "Summer",
-      month %in% c(9, 10, 11) ~ "Autumn",
-      TRUE ~ NA_character_
-    )
-  )
-
-player_season_stats <- appearances_of_interest %>%
-  group_by(player, year, season) %>%
-  summarise(
-    games = n(),
-    goals = sum(goals, na.rm = TRUE),
-    assists = sum(assists, na.rm = TRUE),
-    minutes = sum(minutes_played, na.rm = TRUE),
-	avg_goals = (goals+assists)/games,
-    .groups = "drop"
-  ) %>%
-  arrange(player, year, season)
-
-player_yearly_stats <- appearances_of_interest %>%
-  group_by(player, year) %>%
-  summarise(
-    games = n(),
-    goals = sum(goals, na.rm = TRUE),
-    assists = sum(assists, na.rm = TRUE),
-    minutes = sum(minutes_played, na.rm = TRUE),
-    avg_goals = (goals+assists) / games,
-    .groups = "drop"
-  )
-```
-
-```{r}
-# Create the line plot
-ggplot(player_yearly_stats, aes(x = year, y = avg_goals, color = player)) +
-  geom_line(size = 1) +
-  geom_point(size = 2) +
-  labs(
-    title = "Average Goals + Assists per Game by Year",
-    x = "Year",
-    y = "Average Goals + Assists per Game",
-    color = "Player"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "bottom",
-    plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
-  ) +
-  scale_color_manual(values = c(
-    "Cristiano Ronaldo" = "#E74C3C",
-    "Lionel Messi" = "#3498DB",
-    "Luka Modric" = "#F39C12",
-    "Thomas Müller" = "#9B59B6",
-    "Neymar" = "#2ECC71",
-    "Kylian Mbappé" = "#E67E22"
-  ))
-
-# Create line plot with facets for each season
-ggplot(player_season_stats, aes(x = year, y = avg_goals, color = player)) +
-  geom_line(size = 1) +
-  geom_point(size = 2) +
-  facet_wrap(~ season, ncol = 2) +
-  labs(
-    title = "Average Goals + Assists per Game by Season Across Years",
-    x = "Year",
-    y = "Average Goals + Assists per Game",
-    color = "Player"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "bottom",
-    plot.title = element_text(hjust = 0.5, line = 14, face = "bold"),
-    strip.text = element_text(face = "bold", size = 12)
-  ) +
-  scale_color_manual(values = c(
-    "Cristiano Ronaldo" = "#E74C3C",
-    "Lionel Messi" = "#3498DB",
-    "Luka Modric" = "#F39C12",
-    "Thomas Müller" = "#9B59B6",
-    "Neymar" = "#2ECC71",
-    "Kylian Mbappé" = "#E67E22"
-  ))
-```
-
-```{r}
-# Density plots faceted by player, colored by season
-ggplot(player_season_stats, aes(x = avg_goals, fill = season, color = season)) +
-  geom_density(alpha = 0.5, size = 1) +
-  facet_wrap(~ player, ncol = 2, scales = "free") +
-  labs(
-    title = "Distribution of Average Goals + Assists per Game by Player",
-    x = "Average Goals + Assists per Game",
-    y = "Density",
-    fill = "Season",
-    color = "Season"
-  ) +
-  theme_minimal() +
-  theme(
-    legend.position = "bottom",
-    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
-    strip.text = element_text(face = "bold", size = 11)
-  )
+summary(appearances)
 ```
 
 # Hypothesis 1: Goals in match follow Poisson distribution
@@ -376,3 +268,192 @@ Messi (25-34 y.o.)
 Ronaldo (27-34 y.o.)
 
 Ibrahimović (31-34 y.o.)
+
+
+# Hypothesis 3: Seasonal performance
+Our hypothesis is that players' performance depends on year season
+
+```{r}
+players_of_interest <- c("Cristiano Ronaldo", "Lionel Messi", "Luka Modric", "Thomas Müller", "Neymar", "Kylian Mbappé")
+appearances_of_interest <- filter(appearances, player %in% players_of_interest)
+```
+
+```{r}
+appearances_of_interest <- appearances_of_interest %>%
+  mutate(
+    month 	= month(date),
+	year 	= year(date),
+    season 	= case_when(
+      month %in% c(12, 1, 2) ~ "Winter",
+      month %in% c(3, 4, 5) ~ "Spring",
+      month %in% c(6, 7, 8) ~ "Summer",
+      month %in% c(9, 10, 11) ~ "Autumn",
+      TRUE ~ NA_character_
+    )
+  )
+
+player_season_stats <- appearances_of_interest %>%
+  group_by(player, year, season) %>%
+  summarise(
+    games = n(),
+    goals = sum(goals, na.rm = TRUE),
+    assists = sum(assists, na.rm = TRUE),
+    minutes = sum(minutes_played, na.rm = TRUE),
+	avg_goals = (goals+assists)/games,
+    .groups = "drop"
+  ) %>%
+  arrange(player, year, season)
+
+player_yearly_stats <- appearances_of_interest %>%
+  group_by(player, year) %>%
+  summarise(
+    games = n(),
+    goals = sum(goals, na.rm = TRUE),
+    assists = sum(assists, na.rm = TRUE),
+    minutes = sum(minutes_played, na.rm = TRUE),
+    avg_goals = (goals+assists) / games,
+    .groups = "drop"
+  )
+```
+
+```{r}
+# Create the line plot
+ggplot(player_yearly_stats, aes(x = year, y = avg_goals, color = player)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  labs(
+    title = "Average Goals + Assists per Game by Year",
+    x = "Year",
+    y = "Average Goals + Assists per Game",
+    color = "Player"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
+  ) +
+  scale_color_manual(values = c(
+    "Cristiano Ronaldo" = "#E74C3C",
+    "Lionel Messi" = "#3498DB",
+    "Luka Modric" = "#F39C12",
+    "Thomas Müller" = "#9B59B6",
+    "Neymar" = "#2ECC71",
+    "Kylian Mbappé" = "#E67E22"
+  ))
+
+# Create line plot with facets for each season
+ggplot(player_season_stats, aes(x = year, y = avg_goals, color = player)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  facet_wrap(~ season, ncol = 2) +
+  labs(
+    title = "Average Goals + Assists per Game by Season Across Years",
+    x = "Year",
+    y = "Average Goals + Assists per Game",
+    color = "Player"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5, line = 14, face = "bold"),
+    strip.text = element_text(face = "bold", size = 12)
+  ) +
+  scale_color_manual(values = c(
+    "Cristiano Ronaldo" = "#E74C3C",
+    "Lionel Messi" = "#3498DB",
+    "Luka Modric" = "#F39C12",
+    "Thomas Müller" = "#9B59B6",
+    "Neymar" = "#2ECC71",
+    "Kylian Mbappé" = "#E67E22"
+  ))
+```
+In the plot above we see average number of `goals+assists per match` as measure of players' performance and it's values across years overall and grouped by season. The plots are messy and hard to analyze. Nevertheless, we might wee, that summer is of 4 seasons giving zeros, like having no data and then large peaks of 2 and 2.5 average statistics. 
+
+
+```{r}
+ggplot(player_season_stats, aes(x = avg_goals, fill = season, color = season)) +
+  geom_density(alpha = 0.5, size = 1) +
+  facet_wrap(~ player, ncol = 2, scales = "free_y") +   # keep Y free but fix X
+  coord_cartesian(xlim = c(0, 2.5)) +
+  labs(
+    title = "Distribution of Average Goals + Assists per Game by Player",
+    x = "Average Goals + Assists per Game",
+    y = "Density",
+    fill = "Season",
+    color = "Season"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    strip.text = element_text(face = "bold", size = 11)
+  )
+
+```
+This plot look much cleaner and provides us with total emprical densities of seasonal performance for each player. 
+These plots definitively show the extrime consistency of Lionel Messi throughout career at any season with a slight lower performance in summer and spring. 
+Ronaldo also look dominant, however on summer he does not have season with average score >= 1.5 and has lot of 0.5 and 0 scores, which stands out of his performance during other seasons.
+Neymar show, that he both in summer and winter had all values of average performance from 0 to 2.5, yet more <1.0 on summer. More consistent on autumn and spring
+Luka Modric here is to point out, that average number of goals+assists is not the absolute measure of performance in football, as he is regarded as one of the best central midlfielder, yet scores so rarely. That is obviously because he is supposed to be defender, not the scorer
+
+```{r}
+df <- appearances_of_interest
+# Ensure date column is Date type
+df$date <- as.Date(df$date)
+
+# Add year and season_period columns
+df <- df %>%
+  mutate(
+    year = year(date),
+    month = month(date)
+  ) %>%
+  arrange(date)
+
+# Compute average goals+assists per season per year
+season_summary <- df %>%
+  group_by(year, season) %>%
+  summarise(
+    avg_goals_assists = mean(goals + assists, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  # Add a representative date for plotting
+  mutate(season_date = case_when(
+    season == "Winter" ~ as.Date(paste0(year, "-01-15")),
+    season == "Spring" ~ as.Date(paste0(year, "-04-15")),
+    season == "Summer" ~ as.Date(paste0(year, "-07-15")),
+    season == "Autumn" ~ as.Date(paste0(year, "-10-15"))
+  ))
+
+# Plot
+ggplot(season_summary, aes(x = season_date, y = avg_goals_assists, color = factor(season))) +
+  geom_point(size = 3) +
+  labs(x = "Season", y = "Average Goals + Assists", color = "Year") +
+  theme_minimal()
+
+
+```
+Here we see out mean statistic across season on y-axis, and date on x-axis, and each season is colored differently. Here we see, that performance differs from year, to year, but stays close to each other across seasons(for 2016-2023 it is $\approx1.0$).
+However summer stands out with lower values the average that year. Is it statistically significant?
+Also the plot shows, that performance it stable at about 0.9 till 2023, but after it drops significantly. Supposedly because of the lack of data, as it first showed not data on Ronaldo after 2022 and some others.
+
+```{r}
+# Run ANOVA
+anova_model <- aov(avg_goals_assists ~ season, data = season_summary)
+
+# Show summary
+summary(anova_model)
+
+# Post-hoc pairwise comparison (if significant)
+TukeyHSD(anova_model)
+```
+This is a test: 
+$$
+H_0: mean\ performance\ is\ the\ same\ in\ every\ season\\
+H_1: mean\ differs
+$$
+season shows how much of the data season explains and residulas shows how much it doesn't. Residual is large.
+$Pr(>F)=0.317$ means, that there is 31.7% probability of seeing the data under $H_0$
+
+next we see comparison and testing between individual seasons. The most important value is p adj, which means p_value of the same test with $H_0$ but for specified pair of seasons. The smallest values are indeed $Summer-Autumn$ and $Winter-Summer$, however they are still far from being statistically significant.
+
+Therefore we reject $H_0$ and conclude, that average number of goals+assists does not depend on year season.
