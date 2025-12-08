@@ -18,12 +18,12 @@ games       <- read.csv("./player-scores/games.csv")
 ```
 
 ```{r}
-game_events <- select(game_events, !c(game_event_id, player_in_id, player_assist_id))
-games       <- select(games, game_id, spectators=attendance,
+game_events <- dplyr::select(game_events, !c(game_event_id, player_in_id, player_assist_id))
+games       <- dplyr::select(games, game_id, spectators=attendance,
 						home_club_name, away_club_name,
 						home_club_goals, away_club_goals)
-players     <- select(players, player_id, player=name, date_of_birth)
-clubs       <- select(clubs, club_id, player_club=name)
+players     <- dplyr::select(players, player_id, player=name, date_of_birth)
+clubs       <- dplyr::select(clubs, club_id, player_club=name)
 ```
 
 ```{r}
@@ -56,7 +56,7 @@ head(goals)
 appearances <- read.csv("./player-scores/appearances.csv")
 appearances <- merge(appearances, clubs, by.x = "player_club_id", by.y = "club_id")
 appearances <- merge(appearances, players, by.x = "player_id", by.y = "player_id")
-appearances <- select(appearances, player_club_id, game_id, player_id,
+appearances <- dplyr::select(appearances, player_club_id, game_id, player_id,
                       date, player=player_name, player_club,
                       minutes_played,yellow_cards, red_cards, goals, assists,
                       date_of_birth)
@@ -188,19 +188,9 @@ ggplot(player_season_stats, aes(x = avg_goals, fill = season, color = season)) +
   )
 ```
 
-# Goals in match follow Poisson distribution
+# Hypothesis 1: Goals in match follow Poisson distribution
 
 ```{r}
-
-
-
-game_events <- read.csv("./player-scores/game_events.csv")
-games <- read.csv("./player-scores/games.csv")
-
-goals <- game_events %>% 
-  filter(type == "Goals") %>%
-  dplyr::select(game_id, player_id, date)
-
 goals_per_team <- goals %>%
   group_by(game_id) %>%
   summarise(goals_count = n(), .groups = "drop")
@@ -318,7 +308,7 @@ cat("the hypothesis about Poisson distribution, despite the visually acceptable 
 
 ```
 
-# Hypotesis 3
+# Hypothesis 2: Players perform worse after certain age
 
 ```{r}
 target_names <- "Lionel Messi|Cristiano Ronaldo|Zlatan Ibrahimović"
@@ -369,9 +359,7 @@ By using the ANOVA test we can calculate the statistical difference between the 
 
 The hypothesis is as follows:
 
-$$
-H_0: \mu_{prime} = \mu_{veteran} \text{ vs. } H_1 : \mu_{prime} \ne \mu_{veteran}
-$$
+$$H_0: \mu_{prime} = \mu_{veteran} \text{ vs. } H_1 : \mu_{prime} \ne \mu_{veteran}$$
 
 From our data we get $$p = 3.05e-05$$, therefore we can reject $$H_0$$ with great confidence.
 
