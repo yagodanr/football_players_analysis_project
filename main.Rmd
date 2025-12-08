@@ -3,6 +3,7 @@ library(pacman)
 p_load(dplyr)
 p_load(lubridate)
 p_load(ggplot2)
+p_load(fitdistrplus)
 ```
 
 # Dataset processing
@@ -46,7 +47,7 @@ head(game_events, 100)
 
 ```{r}
 goals   <- game_events[game_events$type=="Goals", ]
-goals
+head(goals)
 ```
 
 ## appearances dataset
@@ -185,6 +186,136 @@ ggplot(player_season_stats, aes(x = avg_goals, fill = season, color = season)) +
     plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
     strip.text = element_text(face = "bold", size = 11)
   )
+```
+
+# Goals in match follow Poisson distribution
+
+```{r}
+
+
+
+game_events <- read.csv("./player-scores/game_events.csv")
+games <- read.csv("./player-scores/games.csv")
+
+goals <- game_events %>% 
+  filter(type == "Goals") %>%
+  dplyr::select(game_id, player_id, date)
+
+goals_per_team <- goals %>%
+  group_by(game_id) %>%
+  summarise(goals_count = n(), .groups = "drop")
+
+all_games <- games %>%
+  dplyr::select(game_id) %>%
+  left_join(goals_per_team, by = "game_id") %>%
+  mutate(goals_count = ifelse(is.na(goals_count), 0, goals_count))
+
+observed_freq <- all_games %>%
+  group_by(goals_count) %>%
+  summarise(observed = n(), .groups = "drop") %>%
+  mutate(observed_proportion = observed / sum(observed))
+
+lambda <- mean(all_games$goals_count)
+cat("Mean value of goals per game:", lambda, "\n")
+
+max_goals <- max(observed_freq$goals_count)
+expected_freq <- data.frame(
+  goals_count = 0:max_goals,
+  expected_proportion = dpois(0:max_goals, lambda)
+)
+
+comparison <- observed_freq %>%
+  full_join(expected_freq, by = "goals_count") %>%
+  arrange(goals_count) %>%
+  mutate(
+    expected = expected_proportion * sum(observed_freq$observed),
+    observed = ifelse(is.na(observed), 0, observed)
+)
+
+print(comparison)
+
+# Chi-square goodness of fit test
+comparison_chi <- comparison %>% mutate(group = case_when(goals_count <= 5 ~ as.character(goals_count), TRUE ~ "6+")) %>%
+  group_by(group) %>% summarise(observed = sum(observed), expected = sum(expected), .groups = "drop") %>%
+  filter(expected >= 5)
+
+chi_test <- chisq.test(x = comparison_chi$observed, p = comparison_chi$expected / sum(comparison_chi$expected))
+
+cat("\nChi-square test results:\n")
+cat("Chi-square statistic:", chi_test$statistic, "\n")
+cat("Degrees of freedom:", chi_test$parameter, "\n")
+cat("P-value:", chi_test$p.value, "\n")
+
+if (chi_test$p.value > 0.05) {
+  cat("We do not reject the null hypothesis (p > 0.05).\n")
+  cat("The data follows a Poisson distribution.\n")
+} else {
+  cat("We reject the null hypothesis (p < 0.05).\n")
+  cat("The given data does not follow a Poisson distribution.\n")
+}
+
+# Kolmogorov-Smirnov test
+ks_test <- ks.test(all_games$goals_count, "ppois", lambda)
+cat("\nKolmogorov-Smirnov test results:\n")
+cat("D statistic:", ks_test$statistic, "\n")
+cat("P-value:", ks_test$p.value, "\n")
+
+# Observed vs Expected frequencies
+comparison_long <- comparison %>%
+  dplyr::select(goals_count, observed, expected) %>%
+  tidyr::pivot_longer(cols = c(observed, expected), names_to = "type", values_to = "frequency")
+
+ggplot(comparison_long, aes(x = goals_count, y = frequency, fill = type)) +
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.7) +
+  labs(
+    title = "Observed vs Expected Frequencies (Poisson Distribution)",
+    subtitle = paste("Lambda =", round(lambda, 3)),
+    x = "Number of Goals per Game",
+    y = "Frequency",
+    fill = "Type"
+  ) + theme_minimal() + theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"), plot.subtitle = element_text(hjust = 0.5, size = 10)) +
+  scale_fill_manual(values = c("observed" = "#3498DB", "expected" = "#E74C3C"))
+
+ggplot(all_games, aes(sample = goals_count)) +
+  stat_qq(distribution = qpois, dparams = list(lambda = lambda)) +
+  stat_qq_line(distribution = qpois, dparams = list(lambda = lambda), 
+               color = "red", size = 1) +
+  labs(title = "Quantile-Quantile Plot: Goals vs Poisson Distribution", x = "Theoretical Poisson Quantiles", y = "Sample Quantiles") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, size = 14, face = "bold"))
+
+cat("Statistical analysis\n")
+
+cat("Hypothesis test results:\n")
+cat("Chi-square Test:\n")
+cat("Statistic: ", chi_test$statistic, "\n")
+cat("Degrees of Freedom: ", chi_test$parameter, "\n")
+cat("P-value: ", format(chi_test$p.value, scientific = TRUE), "\n\n")
+
+cat("Kolmogorov-Smirnov Test:\n")
+cat("D Statistic: ", round(ks_test$statistic, 4), "\n")
+cat("P-value: ", format(ks_test$p.value, scientific = TRUE), "\n\n")
+
+cat("Conclusion\n")
+
+cat("The data does not follow a Poisson distribution.\n")
+cat("Both statistical tests reject the null hypothesis (p-values < 0.05).\n\n")
+
+cat("Though the bar chart shows rough alignment between observed and expected.\n")
+cat("Unfortunately even small deviations on big sample sizes are significant.\n")
+
+cat("Mean goals per game: ", round(lambda, 3), "\n")
+cat("Variance: ", round(var(all_games$goals_count), 3), "\n")
+cat("Variance/Mean: ", round(var(all_games$goals_count) / lambda, 3), "\n")
+cat("In case of Poisson distribution, variance should equal to the mean.\n")
+
+cat("While the Poisson distribution helps demonstrate general shape of goal scoring\n")
+cat("the deviations indicate that real-world football goal\n")
+cat("distributions vary severely more than the Poisson model predicts.\n\n")
+
+cat("The extremely small p-values (< 2.2e-16) is a very strong evidence to reject\n")
+cat("the hypothesis about Poisson distribution, despite the visually acceptable fit.\n\n")
+
 ```
 
 # Hypotesis 3
