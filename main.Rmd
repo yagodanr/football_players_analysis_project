@@ -1,3 +1,11 @@
+Team members:
+
+\> [Mykyta Yahoda](https://github.com/yagodanr)
+
+\> [Oleksandr Lykhanskyi](https://github.com/LMTMARS)
+
+\> [Ivan Zarytskyi](https://github.com/ivan-in-a-nutshell)
+
 ```{r}
 library(pacman)
 p_load(dplyr)
@@ -8,6 +16,8 @@ p_load(performance)
 ```
 
 # Dataset processing
+
+Dataset is a number web-scrappped csv datasets from Transfermarkt to learn more follow the [link](https://www.kaggle.com/datasets/davidcariboo/player-scores/data?select=appearances.csv)
 
 ## goals dataset
 
@@ -45,11 +55,10 @@ game_events <- game_events %>% filter(!is.na(player))
 game_events <- arrange(game_events, date, minute)
 head(game_events, 100)
 ```
+
 ```{r}
 summary(game_events)
 ```
-
-
 
 ```{r}
 goals   <- game_events[game_events$type=="Goals", ]
@@ -76,9 +85,20 @@ appearances <- appearances %>%
 ```{r}
 head(appearances)
 ```
+
 ```{r}
 summary(appearances)
 ```
+
+Here we focused on a few features of the data:
+
+1.  appearances:
+    1.  name – name of the player
+    2.  goals – goals scored by the player during the game, specified by game_id
+    3.  assists – assist by the player during the game
+2.  game_events:
+    1.  type – card, penalty, and what we were interested in – goals.
+    2.  minute – minute during the game, when the event happened
 
 # Hypothesis 1: Goals in match follow Poisson distribution
 
@@ -269,8 +289,8 @@ Ronaldo (27-34 y.o.)
 
 Ibrahimović (31-34 y.o.)
 
-
 # Hypothesis 3: Seasonal performance
+
 Our hypothesis is that players' performance depends on year season
 
 ```{r}
@@ -367,8 +387,8 @@ ggplot(player_season_stats, aes(x = year, y = avg_goals, color = player)) +
     "Kylian Mbappé" = "#E67E22"
   ))
 ```
-In the plot above we see average number of `goals+assists per match` as measure of players' performance and it's values across years overall and grouped by season. The plots are messy and hard to analyze. Nevertheless, we might wee, that summer is of 4 seasons giving zeros, like having no data and then large peaks of 2 and 2.5 average statistics. 
 
+In the plot above we see average number of `goals+assists per match` as measure of players' performance and it's values across years overall and grouped by season. The plots are messy and hard to analyze. Nevertheless, we might wee, that summer is of 4 seasons giving zeros, like having no data and then large peaks of 2 and 2.5 average statistics.
 
 ```{r}
 ggplot(player_season_stats, aes(x = avg_goals, fill = season, color = season)) +
@@ -390,11 +410,8 @@ ggplot(player_season_stats, aes(x = avg_goals, fill = season, color = season)) +
   )
 
 ```
-This plot look much cleaner and provides us with total emprical densities of seasonal performance for each player. 
-These plots definitively show the extrime consistency of Lionel Messi throughout career at any season with a slight lower performance in summer and spring. 
-Ronaldo also look dominant, however on summer he does not have season with average score >= 1.5 and has lot of 0.5 and 0 scores, which stands out of his performance during other seasons.
-Neymar show, that he both in summer and winter had all values of average performance from 0 to 2.5, yet more <1.0 on summer. More consistent on autumn and spring
-Luka Modric here is to point out, that average number of goals+assists is not the absolute measure of performance in football, as he is regarded as one of the best central midlfielder, yet scores so rarely. That is obviously because he is supposed to be defender, not the scorer
+
+This plot look much cleaner and provides us with total emprical densities of seasonal performance for each player. These plots definitively show the extrime consistency of Lionel Messi throughout career at any season with a slight lower performance in summer and spring. Ronaldo also look dominant, however on summer he does not have season with average score \>= 1.5 and has lot of 0.5 and 0 scores, which stands out of his performance during other seasons. Neymar show, that he both in summer and winter had all values of average performance from 0 to 2.5, yet more \<1.0 on summer. More consistent on autumn and spring Luka Modric here is to point out, that average number of goals+assists is not the absolute measure of performance in football, as he is regarded as one of the best central midlfielder, yet scores so rarely. That is obviously because he is supposed to be defender, not the scorer
 
 ```{r}
 df <- appearances_of_interest
@@ -432,9 +449,8 @@ ggplot(season_summary, aes(x = season_date, y = avg_goals_assists, color = facto
 
 
 ```
-Here we see out mean statistic across season on y-axis, and date on x-axis, and each season is colored differently. Here we see, that performance differs from year, to year, but stays close to each other across seasons(for 2016-2023 it is $\approx1.0$).
-However summer stands out with lower values the average that year. Is it statistically significant?
-Also the plot shows, that performance it stable at about 0.9 till 2023, but after it drops significantly. Supposedly because of the lack of data, as it first showed not data on Ronaldo after 2022 and some others.
+
+Here we see out mean statistic across season on y-axis, and date on x-axis, and each season is colored differently. Here we see, that performance differs from year, to year, but stays close to each other across seasons(for 2016-2023 it is $\approx1.0$). However summer stands out with lower values the average that year. Is it statistically significant? Also the plot shows, that performance it stable at about 0.9 till 2023, but after it drops significantly. Supposedly because of the lack of data, as it first showed not data on Ronaldo after 2022 and some others.
 
 ```{r}
 # Run ANOVA
@@ -446,13 +462,11 @@ summary(anova_model)
 # Post-hoc pairwise comparison (if significant)
 TukeyHSD(anova_model)
 ```
-This is a test: 
-$$
-H_0: mean\ performance\ is\ the\ same\ in\ every\ season\\
-H_1: mean\ differs
-$$
-season shows how much of the data season explains and residulas shows how much it doesn't. Residual is large.
-$Pr(>F)=0.317$ means, that there is 31.7% probability of seeing the data under $H_0$
+
+This is a test:
+$$H_0: mean\ performance\ is\ the\ same\ in\ every\ season\\
+H_1: mean\ differs$$
+season shows how much of the data season explains and residulas shows how much it doesn't. Residual is large. $Pr(>F)=0.317$ means, that there is 31.7% probability of seeing the data under $H_0$
 
 next we see comparison and testing between individual seasons. The most important value is p adj, which means p_value of the same test with $H_0$ but for specified pair of seasons. The smallest values are indeed $Summer-Autumn$ and $Winter-Summer$, however they are still far from being statistically significant.
 
